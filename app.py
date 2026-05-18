@@ -1,21 +1,10 @@
 import streamlit as st
 from langchain_community.utilities import SQLDatabase
 from langchain_groq import ChatGroq
-from langchain_core.prompts import PromptTemplate
 
 st.set_page_config(page_title="Text-to-SQL", page_icon="🎵")
 st.title("🎵 Text-to-SQL Query Engine")
 st.write("Ask questions about the **Chinook Music Store** database in plain English!")
-
-# --- API Key (remembered during session) ---
-if "groq_api_key" not in st.session_state:
-    st.session_state.groq_api_key = ""
-
-api_key_input = st.text_input("Enter your Groq API Key", 
-                               value=st.session_state.groq_api_key, 
-                               type="password")
-if api_key_input:
-    st.session_state.groq_api_key = api_key_input
 
 # --- About the Database ---
 with st.expander("📂 What's in the Chinook Database? (click to expand)"):
@@ -47,23 +36,24 @@ with st.expander("📂 What's in the Chinook Database? (click to expand)"):
 question = st.text_input("💬 Ask your question:")
 
 if st.button("Get Answer"):
-    if not st.session_state.groq_api_key:
-        st.error("Please enter your Groq API key.")
-    elif not question:
+    if not question:
         st.warning("Please enter a question.")
     else:
         try:
             with st.spinner("Generating answer..."):
+                # Read API key from Streamlit secrets
+                groq_api_key = st.secrets["GROQ_API_KEY"]
+
                 db = SQLDatabase.from_uri("sqlite:///chinook.db")
                 llm = ChatGroq(
                     model="llama-3.3-70b-versatile",
-                    api_key=st.session_state.groq_api_key,
+                    api_key=groq_api_key,
                     temperature=0
                 )
 
                 # Step 1: Generate SQL
                 schema = db.get_table_info()
-                sql_prompt = f"""You are a SQL expert. Given the database schema below, write a valid SQLite SQL query to answer the question. 
+                sql_prompt = f"""You are a SQL expert. Given the database schema below, write a valid SQLite SQL query to answer the question.
 Return ONLY the SQL query, nothing else. No explanation, no markdown, just the SQL.
 
 Schema:
@@ -72,10 +62,9 @@ Schema:
 Question: {question}
 
 SQL Query:"""
-                
+
                 sql_response = llm.invoke(sql_prompt)
                 sql_query = sql_response.content.strip()
-                # Clean up if model adds markdown
                 sql_query = sql_query.replace("```sql", "").replace("```", "").strip()
 
                 # Step 2: Execute SQL
