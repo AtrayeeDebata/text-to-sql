@@ -38,18 +38,34 @@ if st.button("Get Answer"):
                     return_intermediate_steps=True
                 )
                 result = chain.invoke({"query": question})
+
+                # Extract SQL query
                 try:
                     steps = result.get("intermediate_steps", [])
                     if steps:
-                        sql_query = steps[0].get("input", "")
-                        if "SQLQuery:" in sql_query:
-                            sql_query = sql_query.split("SQLQuery:")[-1].strip()
-                        if sql_query:
-                            st.subheader("Generated SQL Query:")
-                            st.code(sql_query, language="sql")
+                        for step in steps:
+                            if isinstance(step, dict) and "input" in step:
+                                sql = step["input"]
+                                if "SQLQuery:" in sql:
+                                    sql = sql.split("SQLQuery:")[-1].strip()
+                                    sql = sql.split("SQLResult:")[0].strip()
+                                    st.subheader("Generated SQL Query:")
+                                    st.code(sql, language="sql")
+                                    break
                 except:
                     pass
+
+                # Extract clean final answer
+                raw = result.get("result", "")
+                if "Answer:" in raw:
+                    clean = raw.split("Answer:")[-1].strip()
+                elif "SQLResult:" in raw:
+                    clean = raw.split("SQLResult:")[-1].strip()
+                else:
+                    clean = raw.strip()
+
                 st.subheader("Answer:")
-                st.success(result.get("result", "No answer found."))
+                st.success(clean)
+
         except Exception as e:
             st.error(f"Something went wrong: {str(e)}")
